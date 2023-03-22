@@ -100,11 +100,13 @@ def run(video_path, face_path, model_weight, jitter, vis, display_off, save_text
     # load model weights
     model = model_static(model_weight)
     model_dict = model.state_dict()
-    snapshot = torch.load(model_weight)
+    snapshot = torch.load(model_weight, map_location=torch.device('cpu'))
     model_dict.update(snapshot)
     model.load_state_dict(model_dict)
 
-    model.cuda()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # model.cuda()
+    model.to(device)
     model.train(False)
 
     # video reading loop
@@ -148,7 +150,7 @@ def run(video_path, face_path, model_weight, jitter, vis, display_off, save_text
                         img = torch.cat([img, img_jittered])
 
                 # forward pass
-                output = model(img.cuda())
+                output = model(img.to(device))
                 if jitter > 0:
                     output = torch.mean(output, 0)
                 score = F.sigmoid(output).item()
@@ -177,7 +179,7 @@ def run(video_path, face_path, model_weight, jitter, vis, display_off, save_text
     if save_text:
         f.close()
     cap.release()
-    print 'DONE!'
+    print("DONE!")
 
 
 if __name__ == "__main__":
