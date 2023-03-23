@@ -3,13 +3,21 @@ This repository provides a deep convolutional neural network model trained to de
 
 ![](teaser.gif)
 
-## Libraries used in our experiment
-- PyTorch 0.4.0
-- opencv 4.0.0
-- numpy 1.16.2
-- PIL 5.3.0
-- pandas 0.23.4
-- dlib 19.13.0 (optional if you want live face detection)
+## **mainly update compare with orignial repo**
+
+- support the test demo run with only cpu supported devices (laptop, etc)
+- update the face detection model in dlib, run much faster
+- update to python3
+- print more verbose info about running time, video frame size, etc.
+- fix with flag which doesn't produce output video when save_vis is True, and display_off
+
+## Libraries used in our experiment - updated compared with original repo
+- PyTorch 1.11.0
+- opencv 4.5.3
+- numpy 1.23.0
+- PIL 9.1.1
+- pandas 1.4.3
+- dlib 19.24.0 (optional if you want live face detection)
 
 
 ## To run

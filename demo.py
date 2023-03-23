@@ -13,6 +13,7 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 from colour import Color
+import time
 
 
 parser = argparse.ArgumentParser()
@@ -68,6 +69,7 @@ def run(video_path, face_path, model_weight, jitter, vis, display_off, save_text
         outvis_name = os.path.basename(video_path).replace('.avi','_output.avi')
         imwidth = int(cap.get(3)); imheight = int(cap.get(4))
         outvid = cv2.VideoWriter(outvis_name,cv2.VideoWriter_fourcc('M','J','P','G'), cap.get(5), (imwidth,imheight))
+        print("The size of video frames are:", imwidth, " x ", imheight)
 
     # set up face detection mode
     if face_path is None:
@@ -90,7 +92,8 @@ def run(video_path, face_path, model_weight, jitter, vis, display_off, save_text
         exit()
 
     if facemode == 'DLIB':
-        cnn_face_detector = dlib.cnn_face_detection_model_v1(CNN_FACE_MODEL)
+        # cnn_face_detector = dlib.cnn_face_detection_model_v1(CNN_FACE_MODEL)
+        cnn_face_detector = dlib.get_frontal_face_detector()
     frame_cnt = 0
 
     # set up data transformation
@@ -109,8 +112,17 @@ def run(video_path, face_path, model_weight, jitter, vis, display_off, save_text
     model.to(device)
     model.train(False)
 
+    avg_run_time = 0
+    count = 0
+    avg_face_det_time = 0
+    avg_eye_contact_time = 0
+
     # video reading loop
     while(cap.isOpened()):
+
+        # record the time for each frame
+        start_time = time.perf_counter()
+
         ret, frame = cap.read()
         if ret == True:
             height, width, channels = frame.shape
@@ -121,10 +133,14 @@ def run(video_path, face_path, model_weight, jitter, vis, display_off, save_text
             if facemode == 'DLIB':
                 dets = cnn_face_detector(frame, 1)
                 for d in dets:
-                    l = d.rect.left()
-                    r = d.rect.right()
-                    t = d.rect.top()
-                    b = d.rect.bottom()
+                    # l = d.rect.left()
+                    # r = d.rect.right()
+                    # t = d.rect.top()
+                    # b = d.rect.bottom()
+                    l = d.left()
+                    r = d.right()
+                    t = d.top()
+                    b = d.bottom()
                     # expand a bit
                     l -= (r-l)*0.2
                     r += (r-l)*0.2
@@ -134,6 +150,8 @@ def run(video_path, face_path, model_weight, jitter, vis, display_off, save_text
             elif facemode == 'GIVEN':
                 if frame_cnt in df.index:
                     bbox.append([df.loc[frame_cnt,'left'],df.loc[frame_cnt,'top'],df.loc[frame_cnt,'right'],df.loc[frame_cnt,'bottom']])
+
+            face_detection_runtime = time.perf_counter()-start_time
 
             frame = Image.fromarray(frame)
             for b in bbox:
@@ -153,7 +171,7 @@ def run(video_path, face_path, model_weight, jitter, vis, display_off, save_text
                 output = model(img.to(device))
                 if jitter > 0:
                     output = torch.mean(output, 0)
-                score = F.sigmoid(output).item()
+                score = torch.sigmoid(output).item()
 
                 coloridx = min(int(round(score*10)),9)
                 draw = ImageDraw.Draw(frame)
@@ -162,24 +180,38 @@ def run(video_path, face_path, model_weight, jitter, vis, display_off, save_text
                 if save_text:
                     f.write("%d,%f\n"%(frame_cnt,score))
 
-            if not display_off:
+            eye_contact_detection_runtime = time.perf_counter()-start_time-face_detection_runtime
+
+            if vis or not display_off:    
                 frame = np.asarray(frame) # convert PIL image back to opencv format for faster display
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            if vis:
+                outvid.write(frame)
+
+            if not display_off:
                 cv2.imshow('',frame)
-                if vis:
-                    outvid.write(frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'):
                     break
         else:
             break
 
+        run_time = time.perf_counter()-start_time
+        avg_run_time += run_time
+        avg_face_det_time += face_detection_runtime
+        avg_eye_contact_time += eye_contact_detection_runtime
+        count += 1
+
+
     if vis:
         outvid.release()
     if save_text:
         f.close()
     cap.release()
-    print("DONE!")
+    
+
+    print("DONE! Takes", avg_run_time/count, "s for each frame, ", avg_face_det_time/count, "s for face detection, and ", avg_eye_contact_time/count, "s for eye contact detection.")
 
 
 if __name__ == "__main__":
